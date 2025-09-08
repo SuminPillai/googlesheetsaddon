@@ -1,0 +1,26 @@
+{
+  "timeZone": "Asia/Kolkata",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/script.container.ui",
+    "https://www.googleapis.com/auth/spreadsheets.currentonly",
+    "https://www.googleapis.com/auth/script.external_request"
+  ],
+  "urlFetchWhitelist": [
+    "https://excel-addin-backend-1088354707719.asia-south1.run.app/"
+  ],
+  "addOns": {
+    "common": {
+      "name": "20 Percent Price Data",
+      "logoUrl": "https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/20percent_logo.png",
+      "homepageTrigger": {
+        "runFunction": "onOpen"
+      }
+    },
+    "sheets": {
+      "homepageTrigger": {
+        "runFunction": "onSheetsHomepage"
+      }
+    }
+  }
+}
