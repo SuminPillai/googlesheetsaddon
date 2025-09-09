@@ -58,23 +58,14 @@ function fetchDataFromBackend(formData) {
     // Split tickers into an array if they are passed as a single string.
     const tickerList = Array.isArray(tickers) ? tickers : tickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
     
-    // Construct the payload for the request body
-    const payload = {
-      symbols: tickerList,
-      from: fromDate,
-      to: toDate,
-      columns: columns
-    };
+    // Construct the URL with query parameters for a GET request
+    const queryParams = `?symbols=${tickerList.join(',')}&from=${fromDate}&to=${toDate}&columns=${columns.join(',')}`;
+    const fullUrl = `${backendUrl}/stocks${queryParams}`;
 
-    const options = {
-      'method': 'post',
-      'contentType': 'application/json',
-      'payload': JSON.stringify(payload)
-    };
 
-    // Make the request to the backend
-    Logger.log(`Sending payload to backend: ${JSON.stringify(payload)}`);
-    const response = UrlFetchApp.fetch(`${backendUrl}/stocks`, options);
+    // Make the GET request to the backend
+    Logger.log(`Sending GET request to backend: ${fullUrl}`);
+    const response = UrlFetchApp.fetch(fullUrl); // Method is GET by default
     const data = JSON.parse(response.getContentText());
 
     if (data.length === 0) {
@@ -164,15 +155,13 @@ function testBackendConnection() {
     columns: ["Open", "Close"]
   };
 
-  const options = {
-    'method': 'post',
-    'contentType': 'application/json',
-    'payload': JSON.stringify(testPayload)
-  };
+  // Construct the URL with query parameters for a GET request
+  const queryParams = `?symbols=${testPayload.symbols.join(',')}&from=${testPayload.from}&to=${testPayload.to}&columns=${testPayload.columns.join(',')}`;
+  const fullUrl = `${backendUrl}/stocks${queryParams}`;
 
   try {
-    Logger.log("Testing backend connection with a sample payload...");
-    const response = UrlFetchApp.fetch(`${backendUrl}/stocks`, options);
+    Logger.log("Testing backend connection with a sample GET request...");
+    const response = UrlFetchApp.fetch(fullUrl);
     const responseText = response.getContentText();
     Logger.log(`Backend responded with: ${responseText}`);
     return { success: true, message: `Successfully connected to backend. Response: ${responseText}` };
