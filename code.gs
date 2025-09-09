@@ -59,7 +59,7 @@ function fetchDataFromBackend(formData) {
     const tickerList = Array.isArray(tickers) ? tickers : tickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
     
     // Construct the URL with query parameters for a GET request
-    const queryParams = `?symbols=${tickerList.join(',')}&from=${fromDate}&to=${toDate}&columns=${columns.join(',')}`;
+    const queryParams = `?symbols=${encodeURIComponent(tickerList.join(','))}&from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}&columns=${encodeURIComponent(columns.join(','))}`;
     const fullUrl = `${backendUrl}/stocks${queryParams}`;
 
 
@@ -156,7 +156,7 @@ function testBackendConnection() {
   };
 
   // Construct the URL with query parameters for a GET request
-  const queryParams = `?symbols=${testPayload.symbols.join(',')}&from=${testPayload.from}&to=${testPayload.to}&columns=${testPayload.columns.join(',')}`;
+  const queryParams = `?symbols=${encodeURIComponent(testPayload.symbols.join(','))}&from=${encodeURIComponent(testPayload.from)}&to=${encodeURIComponent(testPayload.to)}&columns=${encodeURIComponent(testPayload.columns.join(','))}`;
   const fullUrl = `${backendUrl}/stocks${queryParams}`;
 
   try {
