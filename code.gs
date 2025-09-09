@@ -43,59 +43,56 @@ function showSidebar() {
  */
 function fetchDataFromBackend(formData) {
   const { tickers, fromDate, toDate, columns } = formData;
-  
+
   if (!tickers || tickers.length === 0 || !fromDate || !toDate || !columns || columns.length === 0) {
     return { success: false, message: "Please provide all required inputs." };
   }
 
-  // Use the correct, publicly accessible Cloud Run URL.
   const backendUrl = "https://excel-addin-backend-o5molvd7pa-el.a.run.app";
+  const tickerList = Array.isArray(tickers) ? tickers : tickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
 
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    let row = 1;
+    let currentRow = 1; // Start writing from the first row
 
-    // Split tickers into an array if they are passed as a single string.
-    const tickerList = Array.isArray(tickers) ? tickers : tickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
-    
-    // Construct the payload for the request body
-    const payload = {
-      symbols: tickerList,
-      from: fromDate,
-      to: toDate,
-      columns: columns
-    };
+    for (const ticker of tickerList) {
+      const encodedColumns = encodeURIComponent(columns.join(','));
+      const queryParams = `?symbol=${encodeURIComponent(ticker)}&from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}&columns=${encodedColumns}`;
+      const fullUrl = `${backendUrl}/stocks${queryParams}`;
 
-    const options = {
-      'method': 'post',
-      'contentType': 'application/json',
-      'payload': JSON.stringify(payload)
-    };
+      Logger.log(`Sending GET request for ${ticker}: ${fullUrl}`);
 
-    // Make the request to the backend
-    Logger.log(`Sending payload to backend: ${JSON.stringify(payload)}`);
-    const response = UrlFetchApp.fetch(`${backendUrl}/stocks`, options);
-    const data = JSON.parse(response.getContentText());
+      try {
+        const response = UrlFetchApp.fetch(fullUrl);
+        const data = JSON.parse(response.getContentText());
 
-    if (data.length === 0) {
-      sheet.getRange(row, 1).setValue(`No data found for the selected tickers.`);
-      row += 2;
-    } else {
-      // Write header row
-      const headers = Object.keys(data[0]);
-      sheet.getRange(row, 1, 1, headers.length).setValues([headers]);
-      sheet.getRange(row, 1, 1, headers.length).setFontWeight("bold");
-      row++;
+        if (data.length === 0) {
+          sheet.getRange(currentRow, 1).setValue(`No data found for ${ticker}.`);
+          currentRow += 2; // Leave a blank row
+        } else {
+          // Write header row
+          const headers = Object.keys(data[0]);
+          sheet.getRange(currentRow, 1, 1, headers.length).setValues([headers]);
+          sheet.getRange(currentRow, 1, 1, headers.length).setFontWeight("bold");
+          currentRow++;
 
-      // Write data rows
-      const dataRows = data.map(item => headers.map(header => item[header]));
-      sheet.getRange(row, 1, dataRows.length, headers.length).setValues(dataRows);
-      row += dataRows.length + 2;
+          // Write data rows
+          const dataRows = data.map(item => headers.map(header => item[header]));
+          sheet.getRange(currentRow, 1, dataRows.length, headers.length).setValues(dataRows);
+          currentRow += dataRows.length + 2; // Move to the next position, leaving a blank row
+        }
+      } catch (innerError) {
+        // Log and write error for a single ticker, then continue
+        Logger.log(`Error fetching data for ${ticker}: ${innerError.message}`);
+        sheet.getRange(currentRow, 1).setValue(`Error fetching data for ${ticker}: ${innerError.message}`);
+        currentRow += 2;
+      }
     }
     
-    return { success: true, message: `Successfully fetched and displayed data.` };
+    return { success: true, message: `Successfully fetched and displayed data for all requested tickers.` };
   } catch (e) {
-    return { success: false, message: `Error: ${e.message}. Please make sure your backend server is running and the URL is correct.` };
+    // This will catch errors in the initial setup (e.g., getting the sheet)
+    return { success: false, message: `An unexpected error occurred: ${e.message}.` };
   }
 }
 
@@ -158,21 +155,18 @@ function doPost(e) {
 function testBackendConnection() {
   const backendUrl = "https://excel-addin-backend-o5molvd7pa-el.a.run.app";
   const testPayload = {
-    symbols: ["RCDL"],
+    symbol: "RCDL", // singular
     from: "2025-01-01",
     to: "2025-01-05",
     columns: ["Open", "Close"]
   };
 
-  const options = {
-    'method': 'post',
-    'contentType': 'application/json',
-    'payload': JSON.stringify(testPayload)
-  };
+  const queryParams = `?symbol=${encodeURIComponent(testPayload.symbol)}&from=${encodeURIComponent(testPayload.from)}&to=${encodeURIComponent(testPayload.to)}&columns=${encodeURIComponent(testPayload.columns.join(','))}`;
+  const fullUrl = `${backendUrl}/stocks${queryParams}`;
 
   try {
-    Logger.log("Testing backend connection with a sample payload...");
-    const response = UrlFetchApp.fetch(`${backendUrl}/stocks`, options);
+    Logger.log("Testing backend connection with a sample GET request...");
+    const response = UrlFetchApp.fetch(fullUrl);
     const responseText = response.getContentText();
     Logger.log(`Backend responded with: ${responseText}`);
     return { success: true, message: `Successfully connected to backend. Response: ${responseText}` };
