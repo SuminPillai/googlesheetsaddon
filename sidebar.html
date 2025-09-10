@@ -96,20 +96,36 @@
     <div class="mt-auto">
       <div id="message" class="text-sm p-2 text-center text-gray-700 bg-gray-200 rounded-md hidden"></div>
 
+      <button id="fetchData" class="mt-4 w-full flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+        Fetch Data
+      </button>
+
       <!-- New AI Analysis section -->
+      <div id="robust-ai-container" class="mt-4 hidden space-y-3">
+        <div>
+          <label for="analysisType" class="block text-sm font-medium text-gray-700">Select Analysis Type:</label>
+          <select id="analysisType" class="mt-1 block w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            <option value="summary">Performance Summary</option>
+            <option value="swot">SWOT Analysis</option>
+            <option value="outlook">Future Outlook</option>
+          </select>
+        </div>
+        <div>
+          <label for="customQuestion" class="block text-sm font-medium text-gray-700">Or Ask a Custom Question:</label>
+          <input type="text" id="customQuestion" placeholder="e.g., What was the most volatile week?" class="mt-1 flex-1 block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+        </div>
+        <button id="getAiAnalysis" class="w-full flex items-center justify-center rounded-md border border-transparent bg-purple-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2">
+          Get AI Analysis
+        </button>
+      </div>
+
       <div id="ai-analysis-container" class="mt-4 hidden">
-          <h3 class="text-md font-semibold text-gray-800">AI Analysis</h3>
+          <h3 class="text-md font-semibold text-gray-800">AI Analysis Result</h3>
           <div id="ai-analysis-result" class="mt-2 text-sm p-3 bg-gray-200 text-gray-800 rounded-md min-h-[50px]">
               <!-- AI result will be displayed here -->
           </div>
       </div>
 
-      <button id="fetchData" class="mt-4 w-full flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-        Fetch Data
-      </button>
-      <button id="analyzeData" class="mt-2 w-full flex items-center justify-center rounded-md border border-transparent bg-purple-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 hidden">
-        Analyze Performance
-      </button>
     </div>
   </div>
 
@@ -165,45 +181,28 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      // Setup for column selection
       renderCheckboxes();
       document.getElementById('columnSearch').addEventListener('keyup', renderCheckboxes);
       document.getElementById('selectAllBtn').addEventListener('click', selectAllColumns);
       document.getElementById('deselectAllBtn').addEventListener('click', deselectAllColumns);
 
+      // Set default dates
       const today = new Date();
       const lastWeek = new Date(today);
       lastWeek.setDate(today.getDate() - 7);
       document.getElementById('toDate').valueAsDate = today;
       document.getElementById('fromDate').valueAsDate = lastWeek;
 
-      // Handle "Get from Cell" buttons
-      document.getElementById('getStockSymbolFromCell').addEventListener('click', () => {
-        google.script.run.withSuccessHandler(value => {
-          document.getElementById('stockSymbol').value = value;
-        }).withFailureHandler(handleFailure).getCellValue();
-      });
-
-      document.getElementById('getFromDateFromCell').addEventListener('click', () => {
-        google.script.run.withSuccessHandler(value => {
-          document.getElementById('fromDate').value = value;
-        }).withFailureHandler(handleFailure).getCellValue();
-      });
-
-      document.getElementById('getToDateFromCell').addEventListener('click', () => {
-        google.script.run.withSuccessHandler(value => {
-          document.getElementById('toDate').value = value;
-        }).withFailureHandler(handleFailure).getCellValue();
-      });
-
-      // Handle "Get from Range" button
-      document.getElementById('getTickersFromRange').addEventListener('click', () => {
-        google.script.run.withSuccessHandler(values => {
-          const tickers = values.map(row => row[0]).filter(v => v);
+      // Handle all "Get from Cell" buttons
+      document.getElementById('getStockSymbolFromCell').addEventListener('click', () => google.script.run.withSuccessHandler(v => document.getElementById('stockSymbol').value=v).withFailureHandler(handleFailure).getCellValue());
+      document.getElementById('getFromDateFromCell').addEventListener('click', () => google.script.run.withSuccessHandler(v => document.getElementById('fromDate').value=v).withFailureHandler(handleFailure).getCellValue());
+      document.getElementById('getToDateFromCell').addEventListener('click', () => google.script.run.withSuccessHandler(v => document.getElementById('toDate').value=v).withFailureHandler(handleFailure).getCellValue());
+      document.getElementById('getTickersFromRange').addEventListener('click', () => google.script.run.withSuccessHandler(vs => {
+          const tickers = vs.map(r=>r[0]).filter(v=>v);
           document.getElementById('tickerRange').value = tickers.join(',');
-          displayMessage(`Loaded ${tickers.length} tickers from range.`, false);
-        }).withFailureHandler(handleFailure).getCellRangeValues(document.getElementById('tickerRange').value);
-      });
-
+          displayMessage(`Loaded ${tickers.length} tickers.`);
+      }).withFailureHandler(handleFailure).getCellRangeValues(document.getElementById('tickerRange').value));
       document.getElementById('getStartCellFromSelection').addEventListener('click', () => {
         google.script.run.withSuccessHandler(value => {
           document.getElementById('startCell').value = value;
@@ -212,14 +211,11 @@
 
       // Handle "Fetch Data" button
       document.getElementById('fetchData').addEventListener('click', () => {
-        // Hide previous AI analysis
+        document.getElementById('robust-ai-container').classList.add('hidden');
         document.getElementById('ai-analysis-container').classList.add('hidden');
-        document.getElementById('analyzeData').classList.add('hidden');
 
         const tickers = (document.getElementById('tickerRange').value || document.getElementById('stockSymbol').value)
-                         .split(',')
-                         .map(t => t.trim())
-                         .filter(t => t.length > 0);
+                         .split(',').map(t => t.trim()).filter(t => t.length > 0);
         const fromDate = document.getElementById('fromDate').value;
         const toDate = document.getElementById('toDate').value;
         const startCell = document.getElementById('startCell').value;
@@ -230,40 +226,42 @@
           return;
         }
 
-        // Store the form data for the AI analysis button
         latestFormData = { tickers, fromDate, toDate, columns: selectedColumns, startCell: startCell };
 
         displayMessage(`Fetching data for ${tickers.length} ticker(s)...`);
         google.script.run.withSuccessHandler(response => {
           if (response.success) {
             displayMessage(response.message);
-            // Show the analyze button on success
-            document.getElementById('analyzeData').classList.remove('hidden');
+            document.getElementById('robust-ai-container').classList.remove('hidden');
           } else {
             displayMessage(`Error: ${response.message}`, true);
           }
         }).withFailureHandler(handleFailure).fetchDataFromBackend(latestFormData);
       });
 
-      // Handle "Analyze Performance" button
-      document.getElementById('analyzeData').addEventListener('click', () => {
+      // Handle "Get AI Analysis" button
+      document.getElementById('getAiAnalysis').addEventListener('click', () => {
         if (!latestFormData) {
           displayMessage("Please fetch data first before analyzing.", true);
           return;
         }
 
+        const analysisType = document.getElementById('analysisType').value;
+        const customQuestion = document.getElementById('customQuestion').value;
         const analysisContainer = document.getElementById('ai-analysis-container');
         const analysisResultDiv = document.getElementById('ai-analysis-result');
 
         analysisContainer.classList.remove('hidden');
         analysisResultDiv.textContent = 'Analyzing...';
 
+        const requestData = { ...latestFormData, analysisType, customQuestion };
+
         google.script.run.withSuccessHandler(analysisText => {
             analysisResultDiv.textContent = analysisText;
         }).withFailureHandler(error => {
             analysisResultDiv.textContent = `Analysis failed: ${error.message}`;
             handleFailure(error);
-        }).analyzeStockPerformance(latestFormData);
+        }).analyzeStockPerformance(requestData);
       });
 
       function handleFailure(error) {

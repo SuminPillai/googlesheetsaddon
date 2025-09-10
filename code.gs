@@ -116,13 +116,14 @@ function fetchDataFromBackend(formData) {
 }
 
 /**
- * Analyzes stock data using the Gemini AI API.
- * @param {object} formData The form data containing tickers, dates, and columns.
+ * Analyzes stock data using the Gemini AI API based on user-selected analysis type.
+ * @param {object} requestData The form data plus the analysis type and custom question.
  * @return {string} A text summary of the stock's performance.
  */
-function analyzeStockPerformance(formData) {
+function analyzeStockPerformance(requestData) {
+  const { tickers, fromDate, toDate, columns, analysisType, customQuestion } = requestData;
+
   // 1. Re-fetch the data for the first ticker to be analyzed
-  const { tickers, fromDate, toDate, columns } = formData;
   if (!tickers || tickers.length === 0) {
     return "Error: No ticker provided for analysis.";
   }
@@ -145,16 +146,30 @@ function analyzeStockPerformance(formData) {
     return `Could not fetch data for ${ticker} to analyze.`;
   }
 
-  // 2. Call the Gemini API with the fetched data
+  // 2. Call the Gemini API with a dynamic prompt
   try {
     const apiKey = _getApiKey(); // Securely get the API key
-    const prompt = `You are a financial analyst. Analyze the following daily stock data for ${ticker} from ${fromDate} to ${toDate} and provide a concise, one-paragraph summary of its performance, highlighting key trends in price and volume. Do not start with "Here is an analysis". Just provide the analysis. The data is: ${JSON.stringify(stockData)}`;
+    const dataString = JSON.stringify(stockData);
+    let prompt;
+
+    if (customQuestion && customQuestion.trim() !== '') {
+      prompt = `You are a helpful financial assistant. Given the following daily stock data for ${ticker} from ${fromDate} to ${toDate}: ${dataString}. Please provide a clear and concise answer to the following question: "${customQuestion}"`;
+    } else {
+      switch (analysisType) {
+        case 'swot':
+          prompt = `You are a financial analyst. Based on the following daily stock data for ${ticker} from ${fromDate} to ${toDate}, generate a brief SWOT analysis (Strengths, Weaknesses, Opportunities, Threats). Strengths and weaknesses should be based on the provided data (e.g., price trends, volume). Opportunities and threats can be more general market considerations. Data: ${dataString}`;
+          break;
+        case 'outlook':
+          prompt = `You are a financial analyst. Based on the trends in the following daily stock data for ${ticker} from ${fromDate} to ${toDate}, provide a brief, speculative future outlook. Mention key support or resistance levels if identifiable from the data. Data: ${dataString}`;
+          break;
+        default: // 'summary'
+          prompt = `You are a financial analyst. Analyze the following daily stock data for ${ticker} from ${fromDate} to ${toDate} and provide a concise, one-paragraph summary of its performance, highlighting key trends in price and volume. Do not start with "Here is an analysis". Just provide the analysis. Data: ${dataString}`;
+          break;
+      }
+    }
+
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-preview-0514:generateContent?key=${apiKey}`;
-
-    const payload = {
-      "contents": [{"parts": [{"text": prompt}]}]
-    };
-
+    const payload = { "contents": [{"parts": [{"text": prompt}]}] };
     const options = {
       'method': 'post',
       'contentType': 'application/json',
