@@ -8,7 +8,8 @@
   ],
   "urlFetchWhitelist": [
     "https://excel-addin-backend-1088354707719.asia-south1.run.app/",
-    "https://excel-addin-backend-o5molvd7pa-el.a.run.app/"
+    "https://excel-addin-backend-o5molvd7pa-el.a.run.app/",
+    "https://generativelanguage.googleapis.com/"
   ],
   "addOns": {
     "common": {

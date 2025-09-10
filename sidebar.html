@@ -95,13 +95,27 @@
     <!-- Footer -->
     <div class="mt-auto">
       <div id="message" class="text-sm p-2 text-center text-gray-700 bg-gray-200 rounded-md hidden"></div>
+
+      <!-- New AI Analysis section -->
+      <div id="ai-analysis-container" class="mt-4 hidden">
+          <h3 class="text-md font-semibold text-gray-800">AI Analysis</h3>
+          <div id="ai-analysis-result" class="mt-2 text-sm p-3 bg-gray-200 text-gray-800 rounded-md min-h-[50px]">
+              <!-- AI result will be displayed here -->
+          </div>
+      </div>
+
       <button id="fetchData" class="mt-4 w-full flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
         Fetch Data
+      </button>
+      <button id="analyzeData" class="mt-2 w-full flex items-center justify-center rounded-md border border-transparent bg-purple-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 hidden">
+        Analyze Performance
       </button>
     </div>
   </div>
 
   <script>
+    let latestFormData = null; // Store the last used form data for AI analysis
+
     const backendUrl = "https://excel-addin-backend-o5molvd7pa-el.a.run.app";
     const columns = ["Date", "Open", "High", "Low", "Close", "Volume", "1_Day_%_Change", "3_Day_%_Change", "1_Week_%_Change", "1_Month_%_Change", "3_Month_%_Change", "6_Month_%_Change", "1_Year_%_Change", "Price_MA_10", "Price_MA_20", "Price_MA_50", "Price_MA_100", "Price_MA_200", "Volatility_10", "Volatility_20", "Volatility_50", "Volatility_100", "Volatility_200", "Volume_MA_10", "Volume_MA_20", "Volume_MA_50", "Volume_MA_100", "Volume_MA_200"];
 
@@ -198,6 +212,10 @@
 
       // Handle "Fetch Data" button
       document.getElementById('fetchData').addEventListener('click', () => {
+        // Hide previous AI analysis
+        document.getElementById('ai-analysis-container').classList.add('hidden');
+        document.getElementById('analyzeData').classList.add('hidden');
+
         const tickers = (document.getElementById('tickerRange').value || document.getElementById('stockSymbol').value)
                          .split(',')
                          .map(t => t.trim())
@@ -212,14 +230,40 @@
           return;
         }
 
+        // Store the form data for the AI analysis button
+        latestFormData = { tickers, fromDate, toDate, columns: selectedColumns, startCell: startCell };
+
         displayMessage(`Fetching data for ${tickers.length} ticker(s)...`);
         google.script.run.withSuccessHandler(response => {
           if (response.success) {
             displayMessage(response.message);
+            // Show the analyze button on success
+            document.getElementById('analyzeData').classList.remove('hidden');
           } else {
             displayMessage(`Error: ${response.message}`, true);
           }
-        }).withFailureHandler(handleFailure).fetchDataFromBackend({ tickers, fromDate, toDate, columns: selectedColumns, startCell: startCell });
+        }).withFailureHandler(handleFailure).fetchDataFromBackend(latestFormData);
+      });
+
+      // Handle "Analyze Performance" button
+      document.getElementById('analyzeData').addEventListener('click', () => {
+        if (!latestFormData) {
+          displayMessage("Please fetch data first before analyzing.", true);
+          return;
+        }
+
+        const analysisContainer = document.getElementById('ai-analysis-container');
+        const analysisResultDiv = document.getElementById('ai-analysis-result');
+
+        analysisContainer.classList.remove('hidden');
+        analysisResultDiv.textContent = 'Analyzing...';
+
+        google.script.run.withSuccessHandler(analysisText => {
+            analysisResultDiv.textContent = analysisText;
+        }).withFailureHandler(error => {
+            analysisResultDiv.textContent = `Analysis failed: ${error.message}`;
+            handleFailure(error);
+        }).analyzeStockPerformance(latestFormData);
       });
 
       function handleFailure(error) {

@@ -107,11 +107,74 @@ function fetchDataFromBackend(formData) {
         currentRow += 2;
       }
     }
-    
+
     return { success: true, message: `Successfully fetched and displayed data for all requested tickers.` };
   } catch (e) {
     // This will catch errors in the initial setup (e.g., getting the sheet)
     return { success: false, message: `An unexpected error occurred: ${e.message}.` };
+  }
+}
+
+/**
+ * Analyzes stock data using the Gemini AI API.
+ * @param {object} formData The form data containing tickers, dates, and columns.
+ * @return {string} A text summary of the stock's performance.
+ */
+function analyzeStockPerformance(formData) {
+  // 1. Re-fetch the data for the first ticker to be analyzed
+  const { tickers, fromDate, toDate, columns } = formData;
+  if (!tickers || tickers.length === 0) {
+    return "Error: No ticker provided for analysis.";
+  }
+  const ticker = tickers[0];
+
+  const backendUrl = "https://excel-addin-backend-o5molvd7pa-el.a.run.app";
+  const encodedColumns = encodeURIComponent(columns.join(','));
+  const queryParams = `?symbol=${encodeURIComponent(ticker)}&from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}&columns=${encodedColumns}`;
+  const fullUrl = `${backendUrl}/stocks${queryParams}`;
+
+  let stockData;
+  try {
+    const response = UrlFetchApp.fetch(fullUrl);
+    stockData = JSON.parse(response.getContentText());
+    if (stockData.length === 0) {
+      return `No data found for ${ticker} to analyze.`;
+    }
+  } catch (e) {
+    Logger.log(`Error re-fetching data for analysis: ${e.message}`);
+    return `Could not fetch data for ${ticker} to analyze.`;
+  }
+
+  // 2. Call the Gemini API with the fetched data
+  try {
+    const apiKey = _getApiKey(); // Securely get the API key
+    const prompt = `You are a financial analyst. Analyze the following daily stock data for ${ticker} from ${fromDate} to ${toDate} and provide a concise, one-paragraph summary of its performance, highlighting key trends in price and volume. Do not start with "Here is an analysis". Just provide the analysis. The data is: ${JSON.stringify(stockData)}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-preview-0514:generateContent?key=${apiKey}`;
+
+    const payload = {
+      "contents": [{"parts": [{"text": prompt}]}]
+    };
+
+    const options = {
+      'method': 'post',
+      'contentType': 'application/json',
+      'payload': JSON.stringify(payload),
+      'muteHttpExceptions': true
+    };
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const responseData = JSON.parse(response.getContentText());
+
+    if (responseData.error) {
+      Logger.log(`Gemini API Error: ${JSON.stringify(responseData.error)}`);
+      return `AI Error: ${responseData.error.message}`;
+    }
+
+    const analysis = responseData.candidates[0].content.parts[0].text;
+    return analysis.trim();
+  } catch (e) {
+    Logger.log(`Error calling Gemini API: ${e.toString()}`);
+    return `Error: Could not connect to the AI service. ${e.message}`;
   }
 }
 
@@ -201,4 +264,24 @@ function testBackendConnection() {
     Logger.log(`Failed to connect to backend: ${e.message}`);
     return { success: false, message: `Failed to connect to backend: ${e.message}` };
   }
+}
+
+/**
+ * A helper function to be run ONCE from the script editor to set the API key.
+ * @param {string} key The Gemini API key.
+ */
+function _setApiKey(key) {
+  PropertiesService.getScriptProperties().setProperty('GEMINI_API_KEY', key);
+}
+
+/**
+ * A helper function to retrieve the API key from script properties.
+ * @returns {string} The API key.
+ */
+function _getApiKey() {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) {
+    throw new Error('API key not found. Please set the GEMINI_API_KEY in script properties.');
+  }
+  return apiKey;
 }
