@@ -89,75 +89,7 @@ The manifest file must explicitly whitelist the backend URL for security.
 Code.gs
 This file contains the server-side logic for the add-on, including UI creation, data retrieval, and the backend API call.
 
-#### Core Logic: Fetching Data
-
-The primary function for interacting with the backend is `fetchDataFromBackend`. After a series of debugging steps, this function was refactored to correctly match the backend API's contract. Here is how it works:
-
-1.  **Iterates Through Tickers**: The backend is designed to handle one stock symbol per request. The function loops through the list of tickers provided by the user.
-2.  **Constructs a GET Request**: For each ticker, it constructs a unique URL. The data (symbol, from date, to date, columns) is passed as URL query parameters.
-3.  **Encodes Parameters**: All query parameter values are wrapped in `encodeURIComponent` to handle special characters (like `%`) and prevent errors.
-4.  **Fetches Data**: It uses `UrlFetchApp.fetch()` to make a `GET` request to the backend.
-5.  **Processes and Writes Data**: The JSON response is parsed, and the data is written to the active spreadsheet, with headers for each ticker's data block.
-6.  **Robust Error Handling**: If a request for a single ticker fails, the error is logged and written to the sheet, and the loop continues with the next ticker.
-
-Here is the final, corrected code for the function:
-
-```javascript
-function fetchDataFromBackend(formData) {
-  const { tickers, fromDate, toDate, columns } = formData;
-
-  if (!tickers || tickers.length === 0 || !fromDate || !toDate || !columns || columns.length === 0) {
-    return { success: false, message: "Please provide all required inputs." };
-  }
-
-  const backendUrl = "https://excel-addin-backend-o5molvd7pa-el.a.run.app";
-  const tickerList = Array.isArray(tickers) ? tickers : tickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
-
-  try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    let currentRow = 1; // Start writing from the first row
-
-    for (const ticker of tickerList) {
-      const encodedColumns = encodeURIComponent(columns.join(','));
-      const queryParams = `?symbol=${encodeURIComponent(ticker)}&from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}&columns=${encodedColumns}`;
-      const fullUrl = `${backendUrl}/stocks${queryParams}`;
-
-      Logger.log(`Sending GET request for ${ticker}: ${fullUrl}`);
-
-      try {
-        const response = UrlFetchApp.fetch(fullUrl);
-        const data = JSON.parse(response.getContentText());
-
-        if (data.length === 0) {
-          sheet.getRange(currentRow, 1).setValue(`No data found for ${ticker}.`);
-          currentRow += 2; // Leave a blank row
-        } else {
-          // Write header row
-          const headers = Object.keys(data[0]);
-          sheet.getRange(currentRow, 1, 1, headers.length).setValues([headers]);
-          sheet.getRange(currentRow, 1, 1, headers.length).setFontWeight("bold");
-          currentRow++;
-
-          // Write data rows
-          const dataRows = data.map(item => headers.map(header => item[header]));
-          sheet.getRange(currentRow, 1, dataRows.length, headers.length).setValues(dataRows);
-          currentRow += dataRows.length + 2; // Move to the next position, leaving a blank row
-        }
-      } catch (innerError) {
-        // Log and write error for a single ticker, then continue
-        Logger.log(`Error fetching data for ${ticker}: ${innerError.message}`);
-        sheet.getRange(currentRow, 1).setValue(`Error fetching data for ${ticker}: ${innerError.message}`);
-        currentRow += 2;
-      }
-    }
-
-    return { success: true, message: `Successfully fetched and displayed data for all requested tickers.` };
-  } catch (e) {
-    // This will catch errors in the initial setup (e.g., getting the sheet)
-    return { success: false, message: `An unexpected error occurred: ${e.message}.` };
-  }
-}
-```
+[Immersive content redacted for brevity.]
 
 Sidebar.html
 This file contains the HTML, CSS, and client-side JavaScript for the add-on's user interface.

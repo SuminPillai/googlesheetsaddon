@@ -98,7 +98,7 @@ function fetchDataFromBackend(formData) {
 
           // Write data rows
           sheet.getRange(currentRow, startCol, dataRowsWithSymbol.length, headersWithSymbol.length).setValues(dataRowsWithSymbol);
-          currentRow += dataRowsWithSymbol.length + 2; // Move to the next position, leaving a blank row
+          currentRow += dataRowsWithSymbol.length + 2;
         }
       } catch (innerError) {
         // Log and write error for a single ticker, then continue
