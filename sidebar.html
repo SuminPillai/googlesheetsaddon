@@ -67,12 +67,27 @@
         </div>
       </div>
 
+      <!-- Output Start Cell Input -->
+      <div>
+        <label for="startCell" class="block text-sm font-medium text-gray-700">Output Start Cell (e.g., A2):</label>
+        <div class="mt-1 flex rounded-md shadow-sm">
+          <input type="text" id="startCell" value="A1" placeholder="A1" class="flex-1 block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+          <button id="getStartCellFromSelection" class="ml-2 inline-flex items-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+            Get from Selection
+          </button>
+        </div>
+      </div>
+
       <!-- Column Selection -->
       <div>
         <label class="block text-sm font-medium text-gray-700">Select Columns:</label>
-        <div class="mt-1 border border-gray-300 rounded-md p-2 h-40 overflow-y-auto bg-white">
+        <div class="mt-1 border border-gray-300 rounded-md p-2 h-48 overflow-y-auto bg-white">
           <input type="text" id="columnSearch" placeholder="Search columns..." class="mb-2 block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
-          <div id="columnCheckboxes"></div>
+          <div class="flex space-x-2 mb-2">
+            <button id="selectAllBtn" type="button" class="flex-1 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50">Select All</button>
+            <button id="deselectAllBtn" type="button" class="flex-1 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50">Deselect All</button>
+          </div>
+          <div id="columnCheckboxes" class="h-full"></div>
         </div>
       </div>
     </div>
@@ -121,9 +136,25 @@
       });
     }
 
+    function selectAllColumns() {
+      const checkboxes = document.querySelectorAll('#columnCheckboxes input[type="checkbox"]');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+      });
+    }
+
+    function deselectAllColumns() {
+      const checkboxes = document.querySelectorAll('#columnCheckboxes input[type="checkbox"]');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       renderCheckboxes();
       document.getElementById('columnSearch').addEventListener('keyup', renderCheckboxes);
+      document.getElementById('selectAllBtn').addEventListener('click', selectAllColumns);
+      document.getElementById('deselectAllBtn').addEventListener('click', deselectAllColumns);
 
       const today = new Date();
       const lastWeek = new Date(today);
@@ -159,6 +190,12 @@
         }).withFailureHandler(handleFailure).getCellRangeValues(document.getElementById('tickerRange').value);
       });
 
+      document.getElementById('getStartCellFromSelection').addEventListener('click', () => {
+        google.script.run.withSuccessHandler(value => {
+          document.getElementById('startCell').value = value;
+        }).withFailureHandler(handleFailure).getActiveCellA1Notation();
+      });
+
       // Handle "Fetch Data" button
       document.getElementById('fetchData').addEventListener('click', () => {
         const tickers = (document.getElementById('tickerRange').value || document.getElementById('stockSymbol').value)
@@ -167,6 +204,7 @@
                          .filter(t => t.length > 0);
         const fromDate = document.getElementById('fromDate').value;
         const toDate = document.getElementById('toDate').value;
+        const startCell = document.getElementById('startCell').value;
         const selectedColumns = Array.from(document.querySelectorAll('#columnCheckboxes input[type="checkbox"]:checked')).map(cb => cb.value);
 
         if (tickers.length === 0 || !fromDate || !toDate || selectedColumns.length === 0) {
@@ -181,7 +219,7 @@
           } else {
             displayMessage(`Error: ${response.message}`, true);
           }
-        }).withFailureHandler(handleFailure).fetchDataFromBackend({ tickers, fromDate, toDate, columns: selectedColumns });
+        }).withFailureHandler(handleFailure).fetchDataFromBackend({ tickers, fromDate, toDate, columns: selectedColumns, startCell: startCell });
       });
 
       function handleFailure(error) {

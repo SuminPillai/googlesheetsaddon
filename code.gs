@@ -42,7 +42,7 @@ function showSidebar() {
  * @param {object} formData - An object containing the user's input.
  */
 function fetchDataFromBackend(formData) {
-  const { tickers, fromDate, toDate, columns } = formData;
+  const { tickers, fromDate, toDate, columns, startCell } = formData;
 
   if (!tickers || tickers.length === 0 || !fromDate || !toDate || !columns || columns.length === 0) {
     return { success: false, message: "Please provide all required inputs." };
@@ -53,7 +53,20 @@ function fetchDataFromBackend(formData) {
 
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    let currentRow = 1; // Start writing from the first row
+
+    // Determine starting row and column from startCell parameter
+    let startRow = 1;
+    let startCol = 1;
+    if (startCell) {
+      try {
+        const range = sheet.getRange(startCell);
+        startRow = range.getRow();
+        startCol = range.getColumn();
+      } catch (e) {
+        return { success: false, message: `Invalid start cell: ${startCell}. Please provide a valid cell reference (e.g., A2).` };
+      }
+    }
+    let currentRow = startRow;
 
     for (const ticker of tickerList) {
       const encodedColumns = encodeURIComponent(columns.join(','));
@@ -67,24 +80,30 @@ function fetchDataFromBackend(formData) {
         const data = JSON.parse(response.getContentText());
 
         if (data.length === 0) {
-          sheet.getRange(currentRow, 1).setValue(`No data found for ${ticker}.`);
+          sheet.getRange(currentRow, startCol).setValue(`No data found for ${ticker}.`);
           currentRow += 2; // Leave a blank row
         } else {
+          // Add "Symbol" to headers and data
+          const originalHeaders = Object.keys(data[0]);
+          const headersWithSymbol = ["Symbol", ...originalHeaders];
+          const dataRowsWithSymbol = data.map(item => {
+            const row = originalHeaders.map(header => item[header]);
+            return [ticker, ...row];
+          });
+
           // Write header row
-          const headers = Object.keys(data[0]);
-          sheet.getRange(currentRow, 1, 1, headers.length).setValues([headers]);
-          sheet.getRange(currentRow, 1, 1, headers.length).setFontWeight("bold");
+          sheet.getRange(currentRow, startCol, 1, headersWithSymbol.length).setValues([headersWithSymbol]);
+          sheet.getRange(currentRow, startCol, 1, headersWithSymbol.length).setFontWeight("bold");
           currentRow++;
 
           // Write data rows
-          const dataRows = data.map(item => headers.map(header => item[header]));
-          sheet.getRange(currentRow, 1, dataRows.length, headers.length).setValues(dataRows);
-          currentRow += dataRows.length + 2; // Move to the next position, leaving a blank row
+          sheet.getRange(currentRow, startCol, dataRowsWithSymbol.length, headersWithSymbol.length).setValues(dataRowsWithSymbol);
+          currentRow += dataRowsWithSymbol.length + 2; // Move to the next position, leaving a blank row
         }
       } catch (innerError) {
         // Log and write error for a single ticker, then continue
         Logger.log(`Error fetching data for ${ticker}: ${innerError.message}`);
-        sheet.getRange(currentRow, 1).setValue(`Error fetching data for ${ticker}: ${innerError.message}`);
+        sheet.getRange(currentRow, startCol).setValue(`Error fetching data for ${ticker}: ${innerError.message}`);
         currentRow += 2;
       }
     }
@@ -103,6 +122,14 @@ function fetchDataFromBackend(formData) {
 function getCellValue() {
   const cell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getActiveCell();
   return cell.getValue();
+}
+
+/**
+ * Retrieves the A1 notation of the currently selected cell.
+ * @return {string} The A1 notation of the cell (e.g., 'A1').
+ */
+function getActiveCellA1Notation() {
+  return SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getActiveCell().getA1Notation();
 }
 
 /**
