@@ -27,7 +27,7 @@
       <div>
         <label for="stockSymbol" class="block text-sm font-medium text-gray-700">Stock Symbol (Single):</label>
         <div class="mt-1 flex rounded-md shadow-sm">
-          <input type="text" id="stockSymbol" value="MSFT" placeholder="MSFT" class="flex-1 block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+          <input type="text" id="stockSymbol" placeholder="e.g., MSFT" class="flex-1 block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
           <button id="getStockSymbolFromCell" class="ml-2 inline-flex items-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
             Get from Cell
           </button>
@@ -100,8 +100,14 @@
         Fetch Data
       </button>
 
-      <!-- New AI Analysis section -->
-      <div id="robust-ai-container" class="mt-4 hidden space-y-3">
+      <!-- Simple AI Analysis Checkbox (for multi-ticker) -->
+      <div id="simple-ai-container" class="mt-4 flex items-center hidden">
+        <input id="includeAiAnalysis" type="checkbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+        <label for="includeAiAnalysis" class="ml-2 block text-sm text-gray-900">Include AI Summary for each ticker</label>
+      </div>
+
+      <!-- Advanced AI Analysis section (for single-ticker) -->
+      <div id="advanced-ai-container" class="mt-4 hidden space-y-3">
         <div>
           <label for="analysisType" class="block text-sm font-medium text-gray-700">Select Analysis Type:</label>
           <select id="analysisType" class="mt-1 block w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
@@ -119,19 +125,17 @@
         </button>
       </div>
 
+      <!-- AI Analysis Result Display -->
       <div id="ai-analysis-container" class="mt-4 hidden">
           <h3 class="text-md font-semibold text-gray-800">AI Analysis Result</h3>
           <div id="ai-analysis-result" class="mt-2 text-sm p-3 bg-gray-200 text-gray-800 rounded-md min-h-[50px]">
               <!-- AI result will be displayed here -->
           </div>
       </div>
-
     </div>
   </div>
 
   <script>
-    let latestFormData = null; // Store the last used form data for AI analysis
-
     const backendUrl = "https://excel-addin-backend-o5molvd7pa-el.a.run.app";
     const columns = ["Date", "Open", "High", "Low", "Close", "Volume", "1_Day_%_Change", "3_Day_%_Change", "1_Week_%_Change", "1_Month_%_Change", "3_Month_%_Change", "6_Month_%_Change", "1_Year_%_Change", "Price_MA_10", "Price_MA_20", "Price_MA_50", "Price_MA_100", "Price_MA_200", "Volatility_10", "Volatility_20", "Volatility_50", "Volatility_100", "Volatility_200", "Volume_MA_10", "Volume_MA_20", "Volume_MA_50", "Volume_MA_100", "Volume_MA_200"];
 
@@ -180,59 +184,84 @@
       });
     }
 
+    function _updateAiControls() {
+      const singleTicker = document.getElementById('stockSymbol').value.trim();
+      const tickerRange = document.getElementById('tickerRange').value.trim();
+      const simpleContainer = document.getElementById('simple-ai-container');
+      const advancedContainer = document.getElementById('advanced-ai-container');
+
+      if (tickerRange) {
+        simpleContainer.classList.remove('hidden');
+        advancedContainer.classList.add('hidden');
+      } else if (singleTicker) {
+        simpleContainer.classList.add('hidden');
+        advancedContainer.classList.remove('hidden');
+      } else {
+        simpleContainer.classList.add('hidden');
+        advancedContainer.classList.add('hidden');
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      // Setup for column selection
       renderCheckboxes();
       document.getElementById('columnSearch').addEventListener('keyup', renderCheckboxes);
       document.getElementById('selectAllBtn').addEventListener('click', selectAllColumns);
       document.getElementById('deselectAllBtn').addEventListener('click', deselectAllColumns);
 
+      // Add listeners for the AI UI switching
+      document.getElementById('stockSymbol').addEventListener('keyup', _updateAiControls);
+      document.getElementById('tickerRange').addEventListener('keyup', _updateAiControls);
+      document.getElementById('stockSymbol').addEventListener('change', _updateAiControls);
+      document.getElementById('tickerRange').addEventListener('change', _updateAiControls);
+
+      // Set initial state
+      _updateAiControls();
+
+      // Set default dates
       const today = new Date();
       const lastWeek = new Date(today);
       lastWeek.setDate(today.getDate() - 7);
       document.getElementById('toDate').valueAsDate = today;
       document.getElementById('fromDate').valueAsDate = lastWeek;
 
-      // Handle "Get from Cell" buttons
+      // Handle all "Get from Cell" buttons
       document.getElementById('getStockSymbolFromCell').addEventListener('click', () => {
         google.script.run.withSuccessHandler(value => {
           document.getElementById('stockSymbol').value = value;
+          document.getElementById('tickerRange').value = ''; // Clear other input
+          _updateAiControls();
         }).withFailureHandler(handleFailure).getCellValue();
       });
-
       document.getElementById('getFromDateFromCell').addEventListener('click', () => {
         google.script.run.withSuccessHandler(value => {
-          document.getElementById('fromDate').value = value;
-        }).withFailureHandler(handleFailure).getCellValue();
+          if (value) document.getElementById('fromDate').value = value;
+        }).withFailureHandler(handleFailure)._getCellValueAsFormattedDate();
       });
-
       document.getElementById('getToDateFromCell').addEventListener('click', () => {
         google.script.run.withSuccessHandler(value => {
-          document.getElementById('toDate').value = value;
-        }).withFailureHandler(handleFailure).getCellValue();
+          if (value) document.getElementById('toDate').value = value;
+        }).withFailureHandler(handleFailure)._getCellValueAsFormattedDate();
       });
-
-      // Handle "Get from Range" button
       document.getElementById('getTickersFromRange').addEventListener('click', () => {
         google.script.run.withSuccessHandler(values => {
           const tickers = values.map(row => row[0]).filter(v => v);
           document.getElementById('tickerRange').value = tickers.join(',');
-          displayMessage(`Loaded ${tickers.length} tickers from range.`, false);
+          document.getElementById('stockSymbol').value = ''; // Clear other input
+           _updateAiControls();
         }).withFailureHandler(handleFailure).getCellRangeValues(document.getElementById('tickerRange').value);
       });
-
       document.getElementById('getStartCellFromSelection').addEventListener('click', () => {
         google.script.run.withSuccessHandler(value => {
           document.getElementById('startCell').value = value;
         }).withFailureHandler(handleFailure).getActiveCellA1Notation();
       });
 
-      // Handle "Fetch Data" button
+      // This is the main button that triggers the backend process
       document.getElementById('fetchData').addEventListener('click', () => {
-        document.getElementById('robust-ai-container').classList.add('hidden');
-        document.getElementById('ai-analysis-container').classList.add('hidden');
-
+        // Gather all form data
         const tickers = (document.getElementById('tickerRange').value || document.getElementById('stockSymbol').value)
-                         .split(',').map(t => t.trim()).filter(t => t.length > 0);
+                         .split(',').map(t => t.trim()).filter(t => t);
         const fromDate = document.getElementById('fromDate').value;
         const toDate = document.getElementById('toDate').value;
         const startCell = document.getElementById('startCell').value;
@@ -243,43 +272,62 @@
           return;
         }
 
-        latestFormData = { tickers, fromDate, toDate, columns: selectedColumns, startCell: startCell };
+        // For multi-ticker requests, check the simple AI summary checkbox
+        const isSingleTickerMode = !!document.getElementById('stockSymbol').value.trim() && !document.getElementById('tickerRange').value.trim();
+        const includeAiAnalysis = isSingleTickerMode ? false : document.getElementById('includeAiAnalysis').checked;
 
-        displayMessage(`Fetching data for ${tickers.length} ticker(s)...`);
-        google.script.run.withSuccessHandler(response => {
-          if (response.success) {
-            displayMessage(response.message);
-            document.getElementById('robust-ai-container').classList.remove('hidden');
-          } else {
-            displayMessage(`Error: ${response.message}`, true);
-          }
-        }).withFailureHandler(handleFailure).fetchDataFromBackend(latestFormData);
+        const requestData = {
+          tickers, fromDate, toDate, columns: selectedColumns, startCell,
+          includeAiAnalysis: includeAiAnalysis,
+          analysisType: 'summary', // Default to summary for multi-ticker
+          customQuestion: ''
+        };
+
+        let message = `Fetching data for ${tickers.length} ticker(s)...`;
+        if (includeAiAnalysis) {
+           message = "Fetching data and generating AI summaries...";
+        }
+        displayMessage(message);
+
+        google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).fetchDataAndAnalyze(requestData);
       });
 
-      // Handle "Get AI Analysis" button
+      // Handle "Get AI Analysis" button for single-ticker advanced analysis
       document.getElementById('getAiAnalysis').addEventListener('click', () => {
-        if (!latestFormData) {
-          displayMessage("Please fetch data first before analyzing.", true);
+        const tickers = [document.getElementById('stockSymbol').value.trim()];
+        const fromDate = document.getElementById('fromDate').value;
+        const toDate = document.getElementById('toDate').value;
+        const startCell = document.getElementById('startCell').value;
+        const selectedColumns = Array.from(document.querySelectorAll('#columnCheckboxes input[type="checkbox"]:checked')).map(cb => cb.value);
+        const analysisType = document.getElementById('analysisType').value;
+        const customQuestion = document.getElementById('customQuestion').value;
+
+        if (!tickers[0] || !fromDate || !toDate || selectedColumns.length === 0) {
+          displayMessage("Please fill in all fields for AI analysis.", true);
           return;
         }
 
-        const analysisType = document.getElementById('analysisType').value;
-        const customQuestion = document.getElementById('customQuestion').value;
-        const analysisContainer = document.getElementById('ai-analysis-container');
-        const analysisResultDiv = document.getElementById('ai-analysis-result');
+        const requestData = { tickers, fromDate, toDate, columns: selectedColumns, startCell, includeAiAnalysis: true, analysisType, customQuestion };
 
-        analysisContainer.classList.remove('hidden');
-        analysisResultDiv.textContent = 'Analyzing...';
+        displayMessage("Fetching data and generating AI analysis...");
+        document.getElementById('ai-analysis-container').classList.remove('hidden');
+        document.getElementById('ai-analysis-result').textContent = 'Analyzing...';
 
-        const requestData = { ...latestFormData, analysisType, customQuestion };
-
-        google.script.run.withSuccessHandler(analysisText => {
-            analysisResultDiv.textContent = analysisText;
-        }).withFailureHandler(error => {
-            analysisResultDiv.textContent = `Analysis failed: ${error.message}`;
-            handleFailure(error);
-        }).analyzeStockPerformance(requestData);
+        google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).fetchDataAndAnalyze(requestData);
       });
+
+      function handleSuccess(response) {
+        if (response.success) {
+          displayMessage(response.message);
+          if (response.aiAnalysis) {
+            document.getElementById('ai-analysis-container').classList.remove('hidden');
+            document.getElementById('ai-analysis-result').textContent = response.aiAnalysis;
+          }
+        } else {
+          displayMessage(`Error: ${response.message}`, true);
+          document.getElementById('ai-analysis-result').textContent = `Error: ${response.message}`;
+        }
+      }
 
       function handleFailure(error) {
         console.error(error);

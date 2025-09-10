@@ -41,8 +41,8 @@ function showSidebar() {
  * This function will be called from the `Sidebar.html` file.
  * @param {object} formData - An object containing the user's input.
  */
-function fetchDataFromBackend(formData) {
-  const { tickers, fromDate, toDate, columns, startCell } = formData;
+function fetchDataAndAnalyze(requestData) {
+  const { tickers, fromDate, toDate, columns, startCell, includeAiAnalysis, analysisType, customQuestion } = requestData;
 
   if (!tickers || tickers.length === 0 || !fromDate || !toDate || !columns || columns.length === 0) {
     return { success: false, message: "Please provide all required inputs." };
@@ -54,7 +54,6 @@ function fetchDataFromBackend(formData) {
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 
-    // Determine starting row and column from startCell parameter
     let startRow = 1;
     let startCol = 1;
     if (startCell) {
@@ -63,17 +62,16 @@ function fetchDataFromBackend(formData) {
         startRow = range.getRow();
         startCol = range.getColumn();
       } catch (e) {
-        return { success: false, message: `Invalid start cell: ${startCell}. Please provide a valid cell reference (e.g., A2).` };
+        return { success: false, message: `Invalid start cell: ${startCell}.` };
       }
     }
     let currentRow = startRow;
+    let singleAnalysisResult = null;
 
     for (const ticker of tickerList) {
       const encodedColumns = encodeURIComponent(columns.join(','));
       const queryParams = `?symbol=${encodeURIComponent(ticker)}&from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}&columns=${encodedColumns}`;
       const fullUrl = `${backendUrl}/stocks${queryParams}`;
-
-      Logger.log(`Sending GET request for ${ticker}: ${fullUrl}`);
 
       try {
         const response = UrlFetchApp.fetch(fullUrl);
@@ -81,9 +79,8 @@ function fetchDataFromBackend(formData) {
 
         if (data.length === 0) {
           sheet.getRange(currentRow, startCol).setValue(`No data found for ${ticker}.`);
-          currentRow += 2; // Leave a blank row
+          currentRow += 2;
         } else {
-          // Add "Symbol" to headers and data
           const originalHeaders = Object.keys(data[0]);
           const headersWithSymbol = ["Symbol", ...originalHeaders];
           const dataRowsWithSymbol = data.map(item => {
@@ -91,79 +88,65 @@ function fetchDataFromBackend(formData) {
             return [ticker, ...row];
           });
 
-          // Write header row
-          sheet.getRange(currentRow, startCol, 1, headersWithSymbol.length).setValues([headersWithSymbol]);
-          sheet.getRange(currentRow, startCol, 1, headersWithSymbol.length).setFontWeight("bold");
+          sheet.getRange(currentRow, startCol, 1, headersWithSymbol.length).setValues([headersWithSymbol]).setFontWeight("bold");
           currentRow++;
-
-          // Write data rows
           sheet.getRange(currentRow, startCol, dataRowsWithSymbol.length, headersWithSymbol.length).setValues(dataRowsWithSymbol);
-          currentRow += dataRowsWithSymbol.length + 2;
+          currentRow += dataRowsWithSymbol.length;
+
+          // Conditional AI Analysis
+          if (includeAiAnalysis) {
+            const analysis = _getAiAnalysis(ticker, data, fromDate, toDate, analysisType, customQuestion);
+            sheet.getRange(currentRow, startCol).setValue(analysis).setFontStyle('italic');
+
+            if (tickerList.length === 1) {
+              singleAnalysisResult = analysis;
+            }
+            currentRow++;
+          }
+
+          currentRow++; // Add a blank row between tickers
         }
       } catch (innerError) {
-        // Log and write error for a single ticker, then continue
         Logger.log(`Error fetching data for ${ticker}: ${innerError.message}`);
         sheet.getRange(currentRow, startCol).setValue(`Error fetching data for ${ticker}: ${innerError.message}`);
         currentRow += 2;
       }
     }
 
-    return { success: true, message: `Successfully fetched and displayed data for all requested tickers.` };
+    return { success: true, message: `Successfully fetched and displayed data.`, aiAnalysis: singleAnalysisResult };
   } catch (e) {
-    // This will catch errors in the initial setup (e.g., getting the sheet)
     return { success: false, message: `An unexpected error occurred: ${e.message}.` };
   }
 }
 
 /**
- * Analyzes stock data using the Gemini AI API based on user-selected analysis type.
- * @param {object} requestData The form data plus the analysis type and custom question.
- * @return {string} A text summary of the stock's performance.
+ * Calls the Gemini API to get a financial analysis for a given set of stock data.
+ * @param {string} ticker The stock ticker symbol.
+ * @param {Array<Object>} stockData The array of stock data for the ticker.
+ * @param {string} fromDate The start date for the analysis period.
+ * @param {string} toDate The end date for the analysis period.
+ * @param {string} analysisType The type of analysis to perform (e.g., 'summary', 'swot').
+ * @param {string} customQuestion A custom question for the AI.
+ * @return {string} The AI-generated analysis text, or an error message.
  */
-function analyzeStockPerformance(requestData) {
-  const { tickers, fromDate, toDate, columns, analysisType, customQuestion, startCell } = requestData;
-
-  // 1. Re-fetch the data for the first ticker to be analyzed
-  if (!tickers || tickers.length === 0) {
-    return "Error: No ticker provided for analysis.";
-  }
-  const ticker = tickers[0];
-
-  const backendUrl = "https://excel-addin-backend-o5molvd7pa-el.a.run.app";
-  const encodedColumns = encodeURIComponent(columns.join(','));
-  const queryParams = `?symbol=${encodeURIComponent(ticker)}&from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}&columns=${encodedColumns}`;
-  const fullUrl = `${backendUrl}/stocks${queryParams}`;
-
-  let stockData;
+function _getAiAnalysis(ticker, stockData, fromDate, toDate, analysisType, customQuestion) {
   try {
-    const response = UrlFetchApp.fetch(fullUrl);
-    stockData = JSON.parse(response.getContentText());
-    if (stockData.length === 0) {
-      return `No data found for ${ticker} to analyze.`;
-    }
-  } catch (e) {
-    Logger.log(`Error re-fetching data for analysis: ${e.message}`);
-    return `Could not fetch data for ${ticker} to analyze.`;
-  }
-
-  // 2. Call the Gemini API with a dynamic prompt
-  try {
-    const apiKey = _getApiKey(); // Securely get the API key
+    const apiKey = _getApiKey();
     const dataString = JSON.stringify(stockData);
     let prompt;
 
     if (customQuestion && customQuestion.trim() !== '') {
-      prompt = `You are a helpful financial assistant. Given the following daily stock data for ${ticker} from ${fromDate} to ${toDate}: ${dataString}. Please provide a clear and concise answer to the following question: "${customQuestion}"`;
+      prompt = `You are a helpful financial assistant. All monetary values are in Indian Rupees (INR). Given the following daily stock data for ${ticker} from ${fromDate} to ${toDate}: ${dataString}. Please provide a clear and concise answer to the following question: "${customQuestion}"`;
     } else {
       switch (analysisType) {
         case 'swot':
-          prompt = `You are a financial analyst. Based on the following daily stock data for ${ticker} from ${fromDate} to ${toDate}, generate a brief SWOT analysis (Strengths, Weaknesses, Opportunities, Threats). Strengths and weaknesses should be based on the provided data (e.g., price trends, volume). Opportunities and threats can be more general market considerations. Data: ${dataString}`;
+          prompt = `You are a financial analyst. All monetary values are in Indian Rupees (INR). Based on the following daily stock data for ${ticker} from ${fromDate} to ${toDate}, generate a brief SWOT analysis (Strengths, Weaknesses, Opportunities, Threats). Strengths and weaknesses should be based on the provided data (e.g., price trends, volume). Opportunities and threats can be more general market considerations. Data: ${dataString}`;
           break;
         case 'outlook':
-          prompt = `You are a financial analyst. Based on the trends in the following daily stock data for ${ticker} from ${fromDate} to ${toDate}, provide a brief, speculative future outlook. Mention key support or resistance levels if identifiable from the data. Data: ${dataString}`;
+          prompt = `You are a financial analyst. All monetary values are in Indian Rupees (INR). Based on the trends in the following daily stock data for ${ticker} from ${fromDate} to ${toDate}, provide a brief, speculative future outlook. Mention key support or resistance levels if identifiable from the data. Data: ${dataString}`;
           break;
         default: // 'summary'
-          prompt = `You are a financial analyst. Analyze the following daily stock data for ${ticker} from ${fromDate} to ${toDate} and provide a concise, one-paragraph summary of its performance, highlighting key trends in price and volume. Do not start with "Here is an analysis". Just provide the analysis. Data: ${dataString}`;
+          prompt = `You are a financial analyst. All monetary values are in Indian Rupees (INR). Analyze the following daily stock data for ${ticker} from ${fromDate} to ${toDate} and provide a concise, one-paragraph summary of its performance, highlighting key trends in price and volume. Do not start with "Here is an analysis". Just provide the analysis. Data: ${dataString}`;
           break;
       }
     }
@@ -186,19 +169,6 @@ function analyzeStockPerformance(requestData) {
     }
 
     const analysis = responseData.candidates[0].content.parts[0].text.trim();
-
-    // 3. Write the analysis to the sheet
-    try {
-      const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-      const range = sheet.getRange(startCell);
-      // Place the analysis 2 rows below the header of the data block it analyzed
-      const outputRow = range.getRow() + stockData.length + 1;
-      sheet.getRange(outputRow, range.getColumn()).setValue(analysis).setFontStyle('italic');
-    } catch (e) {
-      Logger.log(`Error writing AI analysis to sheet: ${e.message}`);
-      // Don't fail the whole function if writing to the sheet fails, just log it.
-    }
-
     return analysis;
   } catch (e) {
     Logger.log(`Error calling Gemini API: ${e.toString()}`);
@@ -221,6 +191,30 @@ function getCellValue() {
  */
 function getActiveCellA1Notation() {
   return SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getActiveCell().getA1Notation();
+}
+
+/**
+ * Gets the value from the active cell and formats it as YYYY-MM-DD.
+ * Returns an empty string if the cell value is not a valid date.
+ * @returns {string} The formatted date string.
+ */
+function _getCellValueAsFormattedDate() {
+  const cell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getActiveCell();
+  const value = cell.getValue();
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), "yyyy-MM-dd");
+  }
+  // Attempt to parse if it's a string or number
+  try {
+    const date = new Date(value);
+    // Check if it's a valid date
+    if (!isNaN(date.getTime())) {
+      return Utilities.formatDate(date, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), "yyyy-MM-dd");
+    }
+  } catch (e) {
+    // Ignore parsing errors
+  }
+  return ""; // Return empty if not a valid date
 }
 
 /**
