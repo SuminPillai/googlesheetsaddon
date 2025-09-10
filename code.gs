@@ -121,7 +121,7 @@ function fetchDataFromBackend(formData) {
  * @return {string} A text summary of the stock's performance.
  */
 function analyzeStockPerformance(requestData) {
-  const { tickers, fromDate, toDate, columns, analysisType, customQuestion } = requestData;
+  const { tickers, fromDate, toDate, columns, analysisType, customQuestion, startCell } = requestData;
 
   // 1. Re-fetch the data for the first ticker to be analyzed
   if (!tickers || tickers.length === 0) {
@@ -168,7 +168,7 @@ function analyzeStockPerformance(requestData) {
       }
     }
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-preview-0514:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const payload = { "contents": [{"parts": [{"text": prompt}]}] };
     const options = {
       'method': 'post',
@@ -185,8 +185,21 @@ function analyzeStockPerformance(requestData) {
       return `AI Error: ${responseData.error.message}`;
     }
 
-    const analysis = responseData.candidates[0].content.parts[0].text;
-    return analysis.trim();
+    const analysis = responseData.candidates[0].content.parts[0].text.trim();
+
+    // 3. Write the analysis to the sheet
+    try {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+      const range = sheet.getRange(startCell);
+      // Place the analysis 2 rows below the header of the data block it analyzed
+      const outputRow = range.getRow() + stockData.length + 1;
+      sheet.getRange(outputRow, range.getColumn()).setValue(analysis).setFontStyle('italic');
+    } catch (e) {
+      Logger.log(`Error writing AI analysis to sheet: ${e.message}`);
+      // Don't fail the whole function if writing to the sheet fails, just log it.
+    }
+
+    return analysis;
   } catch (e) {
     Logger.log(`Error calling Gemini API: ${e.toString()}`);
     return `Error: Could not connect to the AI service. ${e.message}`;
