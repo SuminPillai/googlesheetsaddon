@@ -1,197 +1,118 @@
-20 Percent Price Data: Excel & Google Sheets Add-in
-This project contains a financial data add-in for both Microsoft Excel and Google Sheets. The add-in is designed to fetch real-time and historical stock data, including financial metrics and technical indicators, directly into your spreadsheets.
+<div align="center">
 
-The solution is powered by a backend service hosted on Google Cloud Run and uses a Google Cloud SQL instance for data storage.
+# 📋 StockData Google Sheets Add-on
 
-Features
-Multi-Platform Support: Works as a task pane add-in in Microsoft Excel and as a sidebar add-on in Google Sheets.
+**Google Sheets sidebar add-on for real-time stock data, financial metrics, and technical indicators**
 
-Comprehensive Financial Data: Fetches price data and key financial metrics from various data providers and the yfinance library.
+![Google Apps Script](https://img.shields.io/badge/Apps_Script-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Cloud Run](https://img.shields.io/badge/Cloud_Run-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white)
+![License](https://img.shields.io/badge/License-Private-red?style=for-the-badge)
 
-Technical Indicators: Supports a wide range of technical indicators for advanced analysis.
+</div>
 
-Cloud-Based Backend: The data fetching and processing logic are handled by a scalable, serverless backend on Google Cloud Run.
+---
 
-Database Integration: Connects to a Google Cloud SQL instance for persistent data storage.
+## Overview
 
-Technology Stack
-Frontend: HTML, CSS, and JavaScript for the user interface.
+A multi-platform financial data add-in for both **Microsoft Excel** and **Google Sheets**. Fetch real-time and historical stock data — including price data, financial metrics, and technical indicators — directly into your spreadsheets.
 
-Add-in Frameworks: Microsoft Office Add-in Platform and Google Apps Script.
+The solution is powered by a **Python backend on Google Cloud Run** and uses **Google Cloud SQL** for persistent data storage.
 
-Backend: Python application running on Google Cloud Run.
+## Architecture
 
-Database: Google Cloud SQL (SQL Server instance)
+```mermaid
+graph TD
+    subgraph Client
+        A[Google Sheets Sidebar]
+        B[Excel Task Pane]
+    end
+    subgraph Backend
+        C[Cloud Run - Python]
+        D[Cloud SQL - SQL Server]
+        E[yfinance API]
+        F[Data Providers]
+    end
+    A -->|Apps Script / UrlFetchApp| C
+    B -->|REST API| C
+    C --> D
+    C --> E
+    C --> F
+```
 
-Data Sources: yfinance library and proprietary data providers.
+## Features
 
-APIs: Excel JavaScript API, Google Sheets API, and UrlFetchApp.
+- 🔀 **Multi-Platform** — Works in both Microsoft Excel (task pane) and Google Sheets (sidebar)
+- 📊 **Comprehensive Data** — Price data, financial metrics, and key ratios
+- 📉 **Technical Indicators** — RSI, MACD, Bollinger Bands, Moving Averages, and more
+- ☁️ **Serverless Backend** — Scalable Python service on Google Cloud Run
+- 🗄️ **Persistent Storage** — Cloud SQL (SQL Server) for reliable data persistence
+- 🔐 **OAuth2 Security** — Proper scoping and URL whitelisting
 
-Setup and Deployment
-This guide covers the steps required to get the add-in running for both platforms.
+## Tech Stack
 
-1. Google Cloud Configuration
-A user-managed Google Cloud Platform (GCP) project is required to host the backend and manage API access.
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | HTML, CSS, JavaScript |
+| **Excel Integration** | Microsoft Office Add-in Platform |
+| **Sheets Integration** | Google Apps Script |
+| **Backend** | Python (Cloud Run) |
+| **Database** | Cloud SQL (SQL Server) |
+| **Data Sources** | yfinance, proprietary providers |
+| **APIs** | Excel JavaScript API, Google Sheets API, UrlFetchApp |
 
-Project ID: plus-percent
+## Project Structure
 
-Project Number: 1088354707719
+```
+├── Code.gs              # Apps Script server-side logic
+├── Sidebar.html         # Add-on UI (HTML/CSS/JS)
+├── appsscript.json      # Apps Script manifest
+└── manifest.xml         # Excel Add-in manifest
+```
 
-Cloud Run Service: excel-addin-backend-o5molvd7pa-el.a.run.app
+## Getting Started
 
-Cloud SQL Instance: plus-percent:us-central1:stock-data-server-2
+### Google Sheets Add-on
 
-OAuth Consent Screen:
-The OAuth consent screen must be configured as External.
+1. Open Google Sheets → **Extensions** → **Apps Script**
+2. Copy `Code.gs` and `Sidebar.html` into the script editor
+3. Update `appsscript.json` with your backend URL
+4. Deploy as an add-on or run directly from the editor
 
-APIs to Enable:
-The following APIs must be enabled in your GCP project:
+### Excel Add-in
 
-Google Sheets API
+1. Load `manifest.xml` via Excel's developer tools
+2. The task pane connects to the Cloud Run backend automatically
 
-Google Workspace Marketplace SDK
+### Backend Setup
 
-2. Google Sheets Add-on (Code.gs and Sidebar.html)
-The Google Sheets add-on is built using Google Apps Script.
+```bash
+# The backend runs on Cloud Run
+# Service URL: excel-addin-backend-o5molvd7pa-el.a.run.app
 
-appsscript.json
-The manifest file must explicitly whitelist the backend URL for security.
+# To deploy your own instance:
+gcloud run deploy stockdata-backend \
+  --source . \
+  --region asia-south1
+```
 
-{
-  "timeZone": "Asia/Kolkata",
-  "dependencies": {},
-  "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8",
-  "oauthScopes": [
-    "[https://www.googleapis.com/auth/script.container.ui](https://www.googleapis.com/auth/script.container.ui)",
-    "[https://www.googleapis.com/auth/spreadsheets.currentonly](https://www.googleapis.com/auth/spreadsheets.currentonly)",
-    "[https://www.googleapis.com/auth/script.external_request](https://www.googleapis.com/auth/script.external_request)"
-  ],
-  "urlFetchWhitelist": [
-    "[https://excel-addin-backend-o5molvd7pa-el.a.run.app](https://excel-addin-backend-o5molvd7pa-el.a.run.app)"
-  ],
-  "addOns": {
-    "common": {
-      "name": "20 Percent Price Data",
-      "logoUrl": "[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/20percent_logo.png](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/20percent_logo.png)",
-      "homepageTrigger": {
-        "runFunction": "onOpen"
-      }
-    },
-    "sheets": {
-      "homepageTrigger": {
-        "runFunction": "onSheetsHomepage"
-      }
-    }
-  }
-}
+## Cloud Configuration
 
-Code.gs
-This file contains the server-side logic for the add-on, including UI creation, data retrieval, and the backend API call.
+| Resource | Value |
+|----------|-------|
+| GCP Project | `plus-percent` |
+| Cloud Run Service | `excel-addin-backend` |
+| Cloud SQL Instance | SQL Server |
+| Required APIs | Google Sheets API, Workspace Marketplace SDK |
 
-[Immersive content redacted for brevity.]
+## Related Projects
 
-Sidebar.html
-This file contains the HTML, CSS, and client-side JavaScript for the add-on's user interface.
+- [**NSE Stock Data Pipeline**](https://github.com/SuminPillai/nse-stock-data-pipeline) — Upstream data pipeline
+- [**StockData Excel Add-in**](https://github.com/SuminPillai/stockdata-excel-addin) — Excel backend service
+- [**StockData WebApp**](https://github.com/SuminPillai/stockdata-webapp) — Web interface
 
-[Immersive content redacted for brevity.]
+---
 
-3. Excel Add-in (manifest.xml)
-The Excel add-in is defined by a manifest file that points to the web-based backend and UI assets.
-
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<OfficeApp xmlns="[http://schemas.microsoft.com/office/appforoffice/1.1](http://schemas.microsoft.com/office/appforoffice/1.1)" xmlns:xsi="[http://www.w3.org/2001/XMLSchema-instance](http://www.w3.org/2001/XMLSchema-instance)" xmlns:bt="[http://schemas.microsoft.com/office/officeappbasictypes/1.0](http://schemas.microsoft.com/office/officeappbasictypes/1.0)" xmlns:ov="[http://schemas.microsoft.com/office/taskpaneappversionoverrides](http://schemas.microsoft.com/office/taskpaneappversionoverrides)" xsi:type="TaskPaneApp">
-  <Id>c6f9e7a9-6b7c-4a3d-8fba-2d7a6d3b1c9b</Id>
-  <Version>1.0.1.0</Version>
-  <ProviderName>Plus Percent</ProviderName>
-  <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="20 Percent Price Data"/>
-  <Description DefaultValue="Advanced Indian stock market analytics with 2,500+ tickers, 100+ technical indicators, and 10+ years of historical data. Superior to Yahoo Finance with institutional-grade analytics."/>
-  <IconUrl DefaultValue="[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-32.png](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-32.png)"/>
-  <HighResolutionIconUrl DefaultValue="[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-64.png](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-64.png)"/>
-  <SupportUrl DefaultValue="[https://excel-addin-backend-o5molvd7pa-el.a.run.app/help](https://excel-addin-backend-o5molvd7pa-el.a.run.app/help)"/>
-  <AppDomains>
-    <AppDomain>[https://excel-addin-backend-o5molvd7pa-el.a.run.app](https://excel-addin-backend-o5molvd7pa-el.a.run.app)</AppDomain>
-    <AppDomain>[https://storage.googleapis.com](https://storage.googleapis.com)</AppDomain>
-  </AppDomains>
-  <Hosts>
-    <Host Name="Workbook"/>
-  </Hosts>
-  <Requirements>
-    <Sets DefaultMinVersion="1.1">
-      <Set Name="ExcelApi" MinVersion="1.7"/>
-    </Sets>
-  </Requirements>
-  <DefaultSettings>
-    <SourceLocation DefaultValue="[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/taskpane.html](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/taskpane.html)"/>
-  </DefaultSettings>
-  <Permissions>ReadWriteDocument</Permissions>
-  <VersionOverrides xmlns="[http://schemas.microsoft.com/office/taskpaneappversionoverrides](http://schemas.microsoft.com/office/taskpaneappversionoverrides)" xsi:type="VersionOverridesV1_0">
-    <Requirements>
-      <bt:Sets DefaultMinVersion="1.1">
-        <bt:Set Name="ExcelApi" MinVersion="1.7"/>
-      </bt:Sets>
-    </Requirements>
-    <Hosts>
-      <Host xsi:type="Workbook">
-        <DesktopFormFactor>
-          <GetStarted>
-            <Title resid="GetStarted.Title"/>
-            <Description resid="GetStarted.Description"/>
-            <LearnMoreUrl resid="GetStarted.LearnMoreUrl"/>
-          </GetStarted>
-          <FunctionFile resid="Commands.Url"/>
-          <ExtensionPoint xsi:type="PrimaryCommandSurface">
-            <OfficeTab id="TabHome">
-              <Group id="CommandsGroup">
-                <Label resid="CommandsGroup.Label"/>
-                <Icon>
-                  <bt:Image size="16" resid="Icon.16x16"/>
-                  <bt:Image size="32" resid="Icon.32x32"/>
-                  <bt:Image size="80" resid="Icon.80x80"/>
-                </Icon>
-                <Control xsi:type="Button" id="TaskpaneButton">
-                  <Label resid="TaskpaneButton.Label"/>
-                  <Supertip>
-                    <Title resid="TaskpaneButton.Label"/>
-                    <Description resid="TaskpaneButton.Tooltip"/>
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="Icon.16x16"/>
-                    <bt:Image size="32" resid="Icon.32x32"/>
-                    <bt:Image size="80" resid="Icon.80x80"/>
-                  </Icon>
-                  <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>IndianStockDataTaskpane</TaskpaneId>
-                    <SourceLocation resid="Taskpane.Url"/>
-                  </Action>
-                </Control>
-              </Group>
-            </OfficeTab>
-          </ExtensionPoint>
-        </DesktopFormFactor>
-      </Host>
-    </Hosts>
-    <Resources>
-      <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-16.png](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-16.png)"/>
-        <bt:Image id="Icon.32x32" DefaultValue="[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-32.png](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-32.png)"/>
-        <bt:Image id="Icon.80x80" DefaultValue="[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-80.png](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/assets/icon-80.png)"/>
-      </bt:Images>
-      <bt:Urls>
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="[https://go.microsoft.com/fwlink/?LinkId=276812](https://go.microsoft.com/fwlink/?LinkId=276812)"/>
-        <bt:Url id="Commands.Url" DefaultValue="[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/commands.html](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/commands.html)"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="[https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/taskpane.html](https://storage.googleapis.com/20pluspercentpricedata/pricedataexceladdin/taskpane.html)"/>
-      </bt:Urls>
-      <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Welcome to Indian Stock Market Analytics!"/>
-        <bt:String id="CommandsGroup.Label" DefaultValue="Indian Stock Data"/>
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Get Stock Data"/>
-      </bt:ShortStrings>
-      <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Access 2,500+ Indian stock tickers with 100+ technical indicators and 10+ years of historical data. Click 'Get Stock Data' to begin advanced market analysis."/>
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Indian stock market analytics with NSE/BSE data, technical indicators, and backtesting capabilities"/>
-      </bt:LongStrings>
-    </Resources>
-  </VersionOverrides>
-</OfficeApp>
+<div align="center">
+  <p>Built with ❤️ by <a href="https://github.com/SuminPillai">Sumin Pillai</a> · <a href="https://alphaquantixanalytics.com">AlphaQuantix Analytics</a></p>
+</div>
